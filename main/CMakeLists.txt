@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS 
+        "main.c"
+        "espnow_handler.c"
+        "usb_comm.c"
+        "data_processor.c"
+    INCLUDE_DIRS 
+        "include"
+)
