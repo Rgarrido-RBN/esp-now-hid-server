@@ -18,14 +18,14 @@ extern "C" {
 #endif
 
 /**
- * @brief HID gamepad report structure - Simple 16-button + 2 axis gamepad
+ * @brief HID gamepad report structure - 2-axis joystick for clutch paddles
  * 
  * This structure represents the data sent to PC as HID report
+ * Optimized for racing simulators (iRacing, Assetto Corsa, etc.)
  */
 typedef struct {
-    uint16_t buttons;           ///< 16 buttons (2 bytes, 1 bit per button)
-    uint16_t left_clutch;       ///< Left clutch paddle (0-1023)
-    uint16_t right_clutch;      ///< Right clutch paddle (0-1023)
+    uint16_t left_clutch;       ///< Left clutch paddle - Axis X (0-4095, 12-bit)
+    uint16_t right_clutch;      ///< Right clutch paddle - Axis Y (0-4095, 12-bit)
 } __attribute__((packed)) usb_hid_gamepad_report_t;
 
 /**
@@ -40,12 +40,11 @@ esp_err_t usb_comm_init(void);
 /**
  * @brief Send HID report to PC
  * 
- * @param buttons Button state bitmask (bit 0 = button 1, etc.)
- * @param left_clutch Left clutch value (0-1023)
- * @param right_clutch Right clutch value (0-1023)
+ * @param left_clutch Left clutch value (0-4095, 12-bit ADC)
+ * @param right_clutch Right clutch value (0-4095, 12-bit ADC)
  * @return ESP_OK on success, error code otherwise
  */
-esp_err_t usb_comm_send_report(uint16_t buttons, uint16_t left_clutch, uint16_t right_clutch);
+esp_err_t usb_comm_send_report(uint16_t left_clutch, uint16_t right_clutch);
 
 /**
  * @brief Check if USB HID is ready

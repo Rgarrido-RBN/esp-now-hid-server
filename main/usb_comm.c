@@ -16,15 +16,23 @@ enum {
     ITF_NUM_TOTAL
 };
 
-// HID Report Descriptor - 16 buttons + 2 analog axes
+// HID Report Descriptor - 2 analog axes (X, Y) for clutch paddles
+// Optimized for racing simulators - No buttons, just 2 axes
 static const uint8_t hid_report_descriptor[] = {
-    0x05, 0x01, 0x09, 0x05, 0xA1, 0x01, 0x85, 0x01,
-    0x05, 0x09, 0x19, 0x01, 0x29, 0x10, 0x15, 0x00,
-    0x25, 0x01, 0x75, 0x01, 0x95, 0x10, 0x81, 0x02,
-    0x05, 0x01, 0x09, 0x30, 0x15, 0x00, 0x26, 0xFF, 
-    0x03, 0x75, 0x10, 0x95, 0x01, 0x81, 0x02, 0x09,
-    0x31, 0x15, 0x00, 0x26, 0xFF, 0x03, 0x75, 0x10,
-    0x95, 0x01, 0x81, 0x02, 0xC0
+    0x05, 0x01,        // Usage Page (Generic Desktop)
+    0x09, 0x04,        // Usage (Joystick)
+    0xA1, 0x01,        // Collection (Application)
+    0x09, 0x01,        //   Usage (Pointer)
+    0xA1, 0x00,        //   Collection (Physical)
+    0x09, 0x30,        //     Usage (X) - Left Clutch Paddle
+    0x09, 0x31,        //     Usage (Y) - Right Clutch Paddle
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x26, 0xFF, 0x0F,  //     Logical Maximum (4095) - 12-bit resolution
+    0x75, 0x10,        //     Report Size (16 bits)
+    0x95, 0x02,        //     Report Count (2 axes)
+    0x81, 0x02,        //     Input (Data, Variable, Absolute)
+    0xC0,              //   End Collection (Physical)
+    0xC0               // End Collection (Application)
 };
 
 // USB Configuration Descriptor
@@ -77,19 +85,18 @@ esp_err_t usb_comm_init(void) {
 
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
     memset(&s_report, 0, sizeof(s_report));
-    ESP_LOGI(TAG, "USB HID ready - 16 buttons + 2 clutch axes");
+    ESP_LOGI(TAG, "USB HID ready - 2-axis joystick (clutch paddles)");
     return ESP_OK;
 }
 
-esp_err_t usb_comm_send_report(uint16_t buttons, uint16_t left_clutch, uint16_t right_clutch) {
+esp_err_t usb_comm_send_report(uint16_t left_clutch, uint16_t right_clutch) {
     if (!s_is_mounted) return ESP_ERR_INVALID_STATE;
     
-    s_report.buttons = buttons;
     s_report.left_clutch = left_clutch;
     s_report.right_clutch = right_clutch;
 
     if (tud_hid_ready()) {
-        tud_hid_report(1, &s_report, sizeof(s_report));
+        tud_hid_report(0, &s_report, sizeof(s_report));
         return ESP_OK;
     }
     return ESP_ERR_INVALID_STATE;

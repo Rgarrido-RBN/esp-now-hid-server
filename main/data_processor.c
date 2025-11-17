@@ -60,29 +60,31 @@ esp_err_t data_processor_process_espnow_data(const uint8_t *mac_addr,
     s_total_packets++;
     s_total_bytes += len;
 
-    // Expected format from ESP-NOW sender:
-    // Bytes 0-1: buttons (uint16_t, little-endian)
-    // Bytes 2-3: left_clutch (uint16_t, little-endian)
-    // Bytes 4-5: right_clutch (uint16_t, little-endian)
+    // Expected format from ESP-NOW sender (ESP32-C3 client):
+    // Bytes 0-1: left_clutch (uint16_t, little-endian, 12-bit ADC value 0-4095)
+    // Bytes 2-3: right_clutch (uint16_t, little-endian, 12-bit ADC value 0-4095)
     
-    if (len < 6) {
-        ESP_LOGW(TAG, "Packet too small: %d bytes", len);
+    if (len < 4) {
+        ESP_LOGW(TAG, "Packet too small: %d bytes (expected 4)", len);
         return ESP_ERR_INVALID_SIZE;
     }
 
     // Parse data (little-endian)
-    uint16_t buttons = (data[1] << 8) | data[0];
-    uint16_t left_clutch = (data[3] << 8) | data[2];
-    uint16_t right_clutch = (data[5] << 8) | data[4];
+    uint16_t left_clutch = (data[1] << 8) | data[0];
+    uint16_t right_clutch = (data[3] << 8) | data[2];
+    
+    // Clamp to 12-bit range (0-4095)
+    left_clutch = left_clutch > 4095 ? 4095 : left_clutch;
+    right_clutch = right_clutch > 4095 ? 4095 : right_clutch;
 
     // Send as HID report
-    esp_err_t ret = usb_comm_send_report(buttons, left_clutch, right_clutch);
+    esp_err_t ret = usb_comm_send_report(left_clutch, right_clutch);
     if (ret != ESP_OK) {
         ESP_LOGD(TAG, "Failed to send HID report: %s", esp_err_to_name(ret));
     }
 
-    ESP_LOGD(TAG, "Packet #%lu - Buttons: 0x%04X, L: %d, R: %d",
-             s_total_packets, buttons, left_clutch, right_clutch);
+    ESP_LOGD(TAG, "Packet #%lu - Left: %d, Right: %d",
+             s_total_packets, left_clutch, right_clutch);
 
     return ESP_OK;
 }
