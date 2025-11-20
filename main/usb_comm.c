@@ -16,22 +16,31 @@ enum {
     ITF_NUM_TOTAL
 };
 
-// HID Report Descriptor - 2 analog axes (X, Y) for clutch paddles
-// Optimized for racing simulators - No buttons, just 2 axes
+// HID Report Descriptor - Gamepad with 2 independent axes
+// Using X and Y axes for left/right clutch paddles
+// Using unsigned 16-bit values (0-65535) for full range compatibility
 static const uint8_t hid_report_descriptor[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop)
-    0x09, 0x04,        // Usage (Joystick)
+    0x09, 0x05,        // Usage (Game Pad)
     0xA1, 0x01,        // Collection (Application)
-    0x09, 0x01,        //   Usage (Pointer)
-    0xA1, 0x00,        //   Collection (Physical)
-    0x09, 0x30,        //     Usage (X) - Left Clutch Paddle
-    0x09, 0x31,        //     Usage (Y) - Right Clutch Paddle
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x26, 0xFF, 0x0F,  //     Logical Maximum (4095) - 12-bit resolution
-    0x75, 0x10,        //     Report Size (16 bits)
-    0x95, 0x02,        //     Report Count (2 axes)
-    0x81, 0x02,        //     Input (Data, Variable, Absolute)
-    0xC0,              //   End Collection (Physical)
+    0x05, 0x01,        //   Usage Page (Generic Desktop)
+    
+    // Left Clutch Paddle as X axis
+    0x09, 0x30,        //   Usage (X)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x27, 0xFF, 0xFF, 0x00, 0x00,  //   Logical Maximum (65535)
+    0x75, 0x10,        //   Report Size (16 bits)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x02,        //   Input (Data, Variable, Absolute)
+    
+    // Right Clutch Paddle as Y axis
+    0x09, 0x31,        //   Usage (Y)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x27, 0xFF, 0xFF, 0x00, 0x00,  //   Logical Maximum (65535)
+    0x75, 0x10,        //   Report Size (16 bits)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x02,        //   Input (Data, Variable, Absolute)
+    
     0xC0               // End Collection (Application)
 };
 
@@ -92,8 +101,13 @@ esp_err_t usb_comm_init(void) {
 esp_err_t usb_comm_send_report(uint16_t left_clutch, uint16_t right_clutch) {
     if (!s_is_mounted) return ESP_ERR_INVALID_STATE;
     
-    s_report.left_clutch = left_clutch;
-    s_report.right_clutch = right_clutch;
+    // Convert from 0-4095 (12-bit ADC) to 0-65535 (16-bit for full axis range)
+    // Scale up by 16x: multiply by 65535/4095 = ~16
+    uint16_t left_scaled = ((uint32_t)left_clutch * 65535) / 4095;
+    uint16_t right_scaled = ((uint32_t)right_clutch * 65535) / 4095;
+    
+    s_report.left_clutch = left_scaled;
+    s_report.right_clutch = right_scaled;
 
     if (tud_hid_ready()) {
         tud_hid_report(0, &s_report, sizeof(s_report));
