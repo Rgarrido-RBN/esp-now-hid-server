@@ -103,6 +103,64 @@ void data_processor_get_stats(uint32_t *total_packets, uint32_t *total_bytes);
  */
 esp_err_t data_processor_get_last_packet_info(data_packet_info_t *info);
 
+/**
+ * @brief Calibration structure for clutch axes
+ */
+typedef struct {
+    uint16_t left_min;      ///< Left clutch minimum value (rest position)
+    uint16_t left_max;      ///< Left clutch maximum value (fully pressed)
+    uint16_t right_min;     ///< Right clutch minimum value (rest position)
+    uint16_t right_max;     ///< Right clutch maximum value (fully pressed)
+    bool calibrated;        ///< True if calibration has been performed
+} clutch_calibration_t;
+
+/**
+ * @brief Start auto-calibration process
+ * 
+ * Captures min/max values over a period of time as user moves clutches
+ * 
+ * @param duration_ms Duration to capture calibration data (e.g., 10000 for 10 seconds)
+ * @return ESP_OK on success, error code otherwise
+ */
+esp_err_t data_processor_start_calibration(uint32_t duration_ms);
+
+/**
+ * @brief Stop calibration process
+ * 
+ * @return ESP_OK on success, error code otherwise
+ */
+esp_err_t data_processor_stop_calibration(void);
+
+/**
+ * @brief Check if calibration is in progress
+ * 
+ * @return true if calibrating, false otherwise
+ */
+bool data_processor_is_calibrating(void);
+
+/**
+ * @brief Get current calibration values
+ * 
+ * @param calib Pointer to store calibration data
+ * @return ESP_OK on success, error code otherwise
+ */
+esp_err_t data_processor_get_calibration(clutch_calibration_t *calib);
+
+/**
+ * @brief Set calibration values manually
+ * 
+ * @param calib Pointer to calibration data
+ * @return ESP_OK on success, error code otherwise
+ */
+esp_err_t data_processor_set_calibration(const clutch_calibration_t *calib);
+
+/**
+ * @brief Reset calibration to defaults (no normalization)
+ * 
+ * @return ESP_OK on success, error code otherwise
+ */
+esp_err_t data_processor_reset_calibration(void);
+
 #ifdef __cplusplus
 }
 #endif

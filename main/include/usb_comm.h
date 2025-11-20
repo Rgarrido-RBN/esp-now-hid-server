@@ -18,14 +18,15 @@ extern "C" {
 #endif
 
 /**
- * @brief HID gamepad report structure - 2-axis joystick for clutch paddles
+ * @brief HID gamepad report structure - 1 button + 1 analog axis
  * 
  * This structure represents the data sent to PC as HID report
- * Optimized for racing simulators (iRacing, Assetto Corsa, etc.)
+ * Left clutch = Button 1 (digital)
+ * Right clutch = X axis (analog 0-65535)
  */
 typedef struct {
-    uint16_t left_clutch;       ///< Left clutch paddle - Axis X (0-4095, 12-bit)
-    uint16_t right_clutch;      ///< Right clutch paddle - Axis Y (0-4095, 12-bit)
+    uint8_t buttons;            ///< Button states (bit 0 = left clutch button)
+    uint16_t right_clutch;      ///< Right clutch paddle - Axis X (0-65535, 16-bit)
 } __attribute__((packed)) usb_hid_gamepad_report_t;
 
 /**
