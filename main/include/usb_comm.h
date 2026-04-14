@@ -1,11 +1,3 @@
-/**
- * @file usb_comm.h
- * @brief USB HID communication handler for PC connection
- * 
- * This module handles USB HID communication with the Windows PC,
- * presenting the device as a game controller/joystick.
- */
-
 #ifndef USB_COMM_H
 #define USB_COMM_H
 
@@ -18,41 +10,27 @@ extern "C" {
 #endif
 
 /**
- * @brief HID gamepad report structure - 1 button + 1 analog axis
- * 
- * This structure represents the data sent to PC as HID report
- * Left clutch = Button 1 (digital)
- * Right clutch = X axis (analog 0-65535)
+ * HID gamepad report — 2 analog axes (4 bytes):
+ *   right_clutch   : X axis  — right clutch paddle (0-65535)
+ *   virtual_clutch : Y axis  — virtual clutch engine output (0-65535)
  */
 typedef struct {
-    uint8_t buttons;            ///< Button states (bit 0 = left clutch button)
-    uint16_t right_clutch;      ///< Right clutch paddle - Axis X (0-65535, 16-bit)
+    uint16_t right_clutch;    ///< X axis: right clutch paddle
+    uint16_t virtual_clutch;  ///< Y axis: virtual clutch engine
 } __attribute__((packed)) usb_hid_gamepad_report_t;
 
-/**
- * @brief Initialize USB HID
- * 
- * Sets up USB HID for game controller communication with PC
- * 
- * @return ESP_OK on success, error code otherwise
- */
+/** Initialize TinyUSB HID device. Call once before spawning tasks. */
 esp_err_t usb_comm_init(void);
 
-/**
- * @brief Send HID report to PC
- * 
- * @param left_clutch Left clutch value (0-4095, 12-bit ADC)
- * @param right_clutch Right clutch value (0-4095, 12-bit ADC)
- * @return ESP_OK on success, error code otherwise
- */
-esp_err_t usb_comm_send_report(uint16_t left_clutch, uint16_t right_clutch);
+/** Returns true when the USB HID device is mounted (PC connected). */
+bool usb_comm_is_connected(void);
 
 /**
- * @brief Check if USB HID is ready
- * 
- * @return true if USB is connected and ready, false otherwise
+ * FreeRTOS task: reads g_right_clutch_value and g_virtual_clutch_value
+ * every 10 ms and sends a HID report.
+ * Pin to core 1, priority 8, stack 4096.
  */
-bool usb_comm_is_connected(void);
+void task_hid_reporter(void *arg);
 
 #ifdef __cplusplus
 }

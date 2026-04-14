@@ -4,7 +4,7 @@
  */
 
 #include "data_processor.h"
-#include "usb_comm.h"
+#include "shared_state.h"
 #include <string.h>
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -155,11 +155,12 @@ esp_err_t data_processor_process_espnow_data(const uint8_t *mac_addr,
         }
     }
 
-    // Send as HID report
-    esp_err_t ret = usb_comm_send_report(left_clutch, right_clutch);
-    if (ret != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to send HID report: %s", esp_err_to_name(ret));
-    }
+    // Threshold same as before: left paddle pressed when > 2800 / 4095
+    #define BUTTON_THRESHOLD 2800
+    g_left_clutch_pressed = (left_clutch > BUTTON_THRESHOLD);
+
+    // Scale right clutch from 12-bit (0-4095) to 16-bit (0-65535)
+    g_right_clutch_value = (uint16_t)(((uint32_t)right_clutch * 65535u) / 4095u);
 
     ESP_LOGD(TAG, "Packet #%lu - Left: %d, Right: %d",
              s_total_packets, left_clutch, right_clutch);

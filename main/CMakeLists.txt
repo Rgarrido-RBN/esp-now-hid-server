@@ -1,9 +1,14 @@
 idf_component_register(
-    SRCS 
+    SRCS
         "main.c"
         "espnow_handler.c"
         "usb_comm.c"
         "data_processor.c"
-    INCLUDE_DIRS 
+        "config_manager.c"
+        "clutch_engine.c"
+        "web_config.c"
+    INCLUDE_DIRS
         "include"
+    EMBED_TXTFILES
+        "web_page.html"
 )

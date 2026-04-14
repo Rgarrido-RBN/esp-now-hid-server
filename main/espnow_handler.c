@@ -74,11 +74,18 @@ esp_err_t espnow_handler_init(void)
     // Initialize WiFi
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    
+
+    /* Create lwIP network interfaces — required for DHCP server (AP) and
+     * HTTP server.  Must be done before esp_wifi_start(). */
+    esp_netif_create_default_wifi_sta();
+    esp_netif_create_default_wifi_ap();
+
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    /* WIFI_AP_STA is required so ESP-NOW and the web AP coexist.
+     * The AP interface is configured later by web_config_init(). */
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_start());
 
     // Set WiFi channel (optional, can be configured)
