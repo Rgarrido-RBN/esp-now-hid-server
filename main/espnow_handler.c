@@ -8,6 +8,8 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_mac.h"
+#include "esp_event.h"
+#include "esp_netif.h"
 #include "nvs_flash.h"
 
 static const char *TAG = "ESPNOW_HANDLER";
@@ -15,11 +17,6 @@ static const char *TAG = "ESPNOW_HANDLER";
 static bool s_is_initialized = false;
 static espnow_recv_callback_t s_recv_callback = NULL;
 
-/**
- * @brief ESP-NOW receive callback (internal)
- * 
- * This function is called by ESP-NOW when data is received
- */
 static void espnow_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len)
 {
     if (recv_info == NULL || data == NULL || len <= 0) {
@@ -29,17 +26,11 @@ static void espnow_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *
 
     ESP_LOGI(TAG, "Received %d bytes from " MACSTR, len, MAC2STR(recv_info->src_addr));
 
-    // Call user callback if registered
     if (s_recv_callback != NULL) {
         s_recv_callback(recv_info->src_addr, data, len);
     }
 }
 
-/**
- * @brief ESP-NOW send callback (internal)
- * 
- * This function is called by ESP-NOW when data send completes
- */
 static void espnow_send_cb(const esp_now_send_info_t *tx_info, esp_now_send_status_t status)
 {
     if (tx_info == NULL) {
@@ -88,7 +79,7 @@ esp_err_t espnow_handler_init(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    // Set WiFi channel (optional, can be configured)
+    // Set WiFi channel to match ESP-NOW transmitter
     ESP_ERROR_CHECK(esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE));
 
     // Initialize ESP-NOW
@@ -132,7 +123,7 @@ esp_err_t espnow_handler_register_recv_callback(espnow_recv_callback_t callback)
 
     s_recv_callback = callback;
     ESP_LOGI(TAG, "Receive callback registered");
-    
+
     return ESP_OK;
 }
 
@@ -150,9 +141,9 @@ esp_err_t espnow_handler_add_peer(const uint8_t *peer_mac)
 
     esp_now_peer_info_t peer_info = {};
     memcpy(peer_info.peer_addr, peer_mac, ESP_NOW_ETH_ALEN);
-    peer_info.channel = 1;  // Same as WiFi channel
+    peer_info.channel = 1;
     peer_info.ifidx = WIFI_IF_STA;
-    peer_info.encrypt = false;  // No encryption for simplicity
+    peer_info.encrypt = false;
 
     esp_err_t ret = esp_now_add_peer(&peer_info);
     if (ret != ESP_OK) {

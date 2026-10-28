@@ -13,7 +13,8 @@ static const char *TAG = "USB_HID";
 static bool s_is_mounted = false;
 static usb_hid_gamepad_report_t s_report = {0};
 
-/* g_right_clutch_value: written by data_processor, read by this task */
+/* g_left_clutch_value / g_right_clutch_value: written by data_processor, read by this task */
+volatile uint16_t g_left_clutch_value = 0;
 volatile uint16_t g_right_clutch_value = 0;
 
 #define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN)
@@ -25,15 +26,15 @@ enum {
 
 /*
  * HID Report Descriptor — Gamepad with 2 analog axes (no buttons):
- *   Usage X  (0x30) : right clutch paddle  (0-65535, 16-bit)
- *   Usage Y  (0x31) : virtual clutch axis  (0-65535, 16-bit)
+ *   Usage X  (0x30) : left paddle   (0-65535, 16-bit)
+ *   Usage Y  (0x31) : right paddle  (0-65535, 16-bit)
  */
 static const uint8_t hid_report_descriptor[] = {
     0x05, 0x01,             // Usage Page (Generic Desktop)
     0x09, 0x05,             // Usage (Game Pad)
     0xA1, 0x01,             // Collection (Application)
 
-    /* X axis — right clutch paddle */
+    /* X axis — left paddle */
     0x09, 0x30,             //   Usage (X)
     0x15, 0x00,             //   Logical Minimum (0)
     0x27, 0xFF, 0xFF, 0x00, 0x00,  // Logical Maximum (65535)
@@ -41,7 +42,7 @@ static const uint8_t hid_report_descriptor[] = {
     0x95, 0x01,             //   Report Count (1)
     0x81, 0x02,             //   Input (Data, Variable, Absolute)
 
-    /* Y axis — virtual clutch engine */
+    /* Y axis — right paddle */
     0x09, 0x31,             //   Usage (Y)
     0x15, 0x00,             //   Logical Minimum (0)
     0x27, 0xFF, 0xFF, 0x00, 0x00,  // Logical Maximum (65535)
@@ -132,8 +133,8 @@ void task_hid_reporter(void *arg)
 
         if (!s_is_mounted) continue;
 
-        s_report.right_clutch   = g_right_clutch_value;
-        s_report.virtual_clutch = g_virtual_clutch_value;
+        s_report.left_clutch  = g_left_clutch_value;
+        s_report.right_clutch = g_right_clutch_value;
 
         if (tud_hid_ready()) {
             tud_hid_report(0, &s_report, sizeof(s_report));

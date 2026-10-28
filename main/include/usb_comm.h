@@ -11,12 +11,12 @@ extern "C" {
 
 /**
  * HID gamepad report — 2 analog axes (4 bytes):
- *   right_clutch   : X axis  — right clutch paddle (0-65535)
- *   virtual_clutch : Y axis  — virtual clutch engine output (0-65535)
+ *   left_clutch  : X axis  — left paddle (0-65535)
+ *   right_clutch : Y axis  — right paddle (0-65535)
  */
 typedef struct {
-    uint16_t right_clutch;    ///< X axis: right clutch paddle
-    uint16_t virtual_clutch;  ///< Y axis: virtual clutch engine
+    uint16_t left_clutch;     ///< X axis: left paddle
+    uint16_t right_clutch;    ///< Y axis: right paddle
 } __attribute__((packed)) usb_hid_gamepad_report_t;
 
 /** Initialize TinyUSB HID device. Call once before spawning tasks. */

@@ -70,6 +70,7 @@ void app_main(void)
     /* 3. Config (NVS already initialized by espnow_handler_init) */
     ESP_ERROR_CHECK(config_manager_init());
     config_manager_load(&g_config);
+    data_processor_set_curves(g_config.left_curve, g_config.right_curve);
 
     /* 4. USB HID */
     ESP_ERROR_CHECK(usb_comm_init());

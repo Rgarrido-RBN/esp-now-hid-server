@@ -155,6 +155,18 @@ esp_err_t data_processor_get_calibration(clutch_calibration_t *calib);
 esp_err_t data_processor_set_calibration(const clutch_calibration_t *calib);
 
 /**
+ * @brief Set the response curve of each paddle
+ *
+ * After calibration the normalized travel t (0..1) is output as t^exponent.
+ * Exponents > 1 compress the start of the travel, compensating sensors
+ * (e.g. hall effect) whose reading rises fastest in the first millimetres.
+ *
+ * @param left_x10  Left paddle exponent x10 (10 = linear)
+ * @param right_x10 Right paddle exponent x10 (10 = linear)
+ */
+void data_processor_set_curves(uint8_t left_x10, uint8_t right_x10);
+
+/**
  * @brief Reset calibration to defaults (no normalization)
  * 
  * @return ESP_OK on success, error code otherwise
