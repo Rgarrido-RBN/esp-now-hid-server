@@ -3,131 +3,135 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/portmacro.h"
-#include <math.h>
 #include "esp_log.h"
 
 static const char *TAG = "CLUTCH";
 
+#define TICK_MS          10
+#define HYSTERESIS_PCT   5     // release happens this much below the trigger
+
 /* Shared globals - defined here, declared extern in shared_state.h */
-volatile bool     g_left_clutch_pressed  = false;
-volatile uint16_t g_virtual_clutch_value = 0;
+volatile uint16_t g_paddle_output[PADDLE_COUNT] = {0};
 
-static clutch_config_t   s_cfg;
-static clutch_state_t    s_state = CE_IDLE;
-static portMUX_TYPE      s_mux   = portMUX_INITIALIZER_UNLOCKED;
+static device_config_t  s_cfg;
+static clutch_status_t  s_status[PADDLE_COUNT];
+static portMUX_TYPE     s_mux = portMUX_INITIALIZER_UNLOCKED;
 
-/* Scale a bite-point percentage (5-80) to a 0-65535 axis value. */
-static inline uint16_t bp_to_axis(uint8_t bp_pct)
+static inline uint16_t pct_to_axis(uint32_t pct)
 {
-    return (uint16_t)((uint32_t)bp_pct * 65535u / 100u);
+    return (uint16_t)(pct * 65535u / 100u);
 }
 
-void clutch_engine_init(const clutch_config_t *cfg)
+/* Output value (0-65535) of the release profile at t_ms after release. */
+static uint16_t profile_value(const paddle_config_t *p, uint32_t t_ms)
 {
-    taskENTER_CRITICAL(&s_mux);
-    s_cfg  = *cfg;
-    s_state = CE_IDLE;
-    taskEXIT_CRITICAL(&s_mux);
+    const release_point_t *pts = p->points;
 
-    g_left_clutch_pressed  = false;
-    g_virtual_clutch_value = 0;
-
-    ESP_LOGI(TAG, "Clutch engine initialized");
+    for (int k = 1; k < p->num_points; k++) {
+        if (t_ms < pts[k].t_ms) {
+            uint32_t span = pts[k].t_ms - pts[k - 1].t_ms;
+            if (span == 0) return pct_to_axis(pts[k].value);
+            int32_t dv = (int32_t)pts[k].value - (int32_t)pts[k - 1].value;
+            int32_t v = (int32_t)pts[k - 1].value * 65535 / 100 +
+                        dv * 65535 / 100 * (int32_t)(t_ms - pts[k - 1].t_ms) / (int32_t)span;
+            return (uint16_t)(v < 0 ? 0 : v > 65535 ? 65535 : v);
+        }
+    }
+    return pct_to_axis(pts[p->num_points - 1].value);
 }
 
-void clutch_engine_reload_config(const clutch_config_t *cfg)
+static uint16_t update_release(const paddle_config_t *p, clutch_status_t *st, uint16_t input)
+{
+    uint16_t on_level  = pct_to_axis(p->trigger_pct);
+    uint16_t off_level = pct_to_axis(p->trigger_pct > HYSTERESIS_PCT ? p->trigger_pct - HYSTERESIS_PCT : 0);
+    uint32_t last_ms   = p->points[p->num_points - 1].t_ms;
+
+    switch (st->state) {
+        case CE_IDLE:
+            if (input >= on_level) {
+                st->state = CE_PRESSED;
+            }
+            break;
+
+        case CE_PRESSED:
+            if (input < off_level) {
+                st->state = CE_RELEASING;
+                st->elapsed_ms = 0;
+            }
+            break;
+
+        case CE_RELEASING:
+            st->elapsed_ms += TICK_MS;
+            if (input >= on_level) {
+                /* Re-engage during release */
+                st->state = CE_PRESSED;
+            } else if (st->elapsed_ms >= last_ms) {
+                st->state = CE_IDLE;
+            }
+            break;
+    }
+
+    switch (st->state) {
+        case CE_PRESSED:   return 65535;
+        case CE_RELEASING: return profile_value(p, st->elapsed_ms);
+        default:           return 0;
+    }
+}
+
+void clutch_engine_init(const device_config_t *cfg)
 {
     taskENTER_CRITICAL(&s_mux);
     s_cfg = *cfg;
+    for (int i = 0; i < PADDLE_COUNT; i++) {
+        s_status[i] = (clutch_status_t){ .state = CE_IDLE, .elapsed_ms = 0 };
+        g_paddle_output[i] = 0;
+    }
     taskEXIT_CRITICAL(&s_mux);
-    ESP_LOGI(TAG, "Config reloaded: bite_point=%d hold=%dms release=%dms curve=%d",
-             cfg->bite_point, cfg->bite_hold_ms, cfg->release_ms, cfg->release_curve);
+
+    ESP_LOGI(TAG, "Output engine initialized");
 }
 
-clutch_state_t clutch_engine_get_state(void)
+void clutch_engine_reload_config(const device_config_t *cfg)
 {
-    return s_state;
+    taskENTER_CRITICAL(&s_mux);
+    for (int i = 0; i < PADDLE_COUNT; i++) {
+        if (cfg->paddle[i].mode != s_cfg.paddle[i].mode) {
+            s_status[i] = (clutch_status_t){ .state = CE_IDLE, .elapsed_ms = 0 };
+        }
+    }
+    s_cfg = *cfg;
+    taskEXIT_CRITICAL(&s_mux);
+    ESP_LOGI(TAG, "Config reloaded");
+}
+
+clutch_status_t clutch_engine_get_status(int paddle)
+{
+    clutch_status_t st = { .state = CE_IDLE, .elapsed_ms = 0 };
+    if (paddle < 0 || paddle >= PADDLE_COUNT) return st;
+    taskENTER_CRITICAL(&s_mux);
+    st = s_status[paddle];
+    taskEXIT_CRITICAL(&s_mux);
+    return st;
 }
 
 void task_clutch_engine(void *arg)
 {
-    uint32_t timer_ms          = 0;
-    uint16_t release_start_val = 0;  /* axis value at the moment RELEASING began */
-
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(TICK_MS));
 
-        /* Snapshot config under critical section to avoid torn reads */
-        clutch_config_t cfg;
+        /* Run under the lock so a config reload never tears mid-update */
         taskENTER_CRITICAL(&s_mux);
-        cfg = s_cfg;
-        taskEXIT_CRITICAL(&s_mux);
+        for (int i = 0; i < PADDLE_COUNT; i++) {
+            const paddle_config_t *p = &s_cfg.paddle[i];
+            uint16_t input = g_paddle_input[i];
 
-        bool     pressed        = g_left_clutch_pressed;
-        uint16_t bite_axis_val  = bp_to_axis(cfg.bite_point);
-
-        switch (s_state) {
-            case CE_IDLE:
-                g_virtual_clutch_value = 0;
-                if (pressed) {
-                    s_state = CE_PRESSED;
-                    g_virtual_clutch_value = 65535;
-                    ESP_LOGD(TAG, "IDLE -> PRESSED");
-                }
-                break;
-
-            case CE_PRESSED:
-                g_virtual_clutch_value = 65535;
-                if (!pressed) {
-                    s_state            = CE_BITE_HOLD;
-                    g_virtual_clutch_value = bite_axis_val;
-                    timer_ms           = 0;
-                    ESP_LOGD(TAG, "PRESSED -> BITE_HOLD (val=%d)", bite_axis_val);
-                }
-                break;
-
-            case CE_BITE_HOLD:
-                g_virtual_clutch_value = bite_axis_val;
-                timer_ms += 10;
-                if (pressed) {
-                    /* Re-engage during hold */
-                    s_state = CE_PRESSED;
-                    g_virtual_clutch_value = 65535;
-                    timer_ms = 0;
-                    ESP_LOGD(TAG, "BITE_HOLD -> PRESSED (re-engage)");
-                } else if (timer_ms >= cfg.bite_hold_ms) {
-                    s_state           = CE_RELEASING;
-                    release_start_val = bite_axis_val;
-                    timer_ms          = 0;
-                    ESP_LOGD(TAG, "BITE_HOLD -> RELEASING");
-                }
-                break;
-
-            case CE_RELEASING:
-                timer_ms += 10;
-                if (pressed) {
-                    /* Re-engage during release */
-                    s_state = CE_PRESSED;
-                    g_virtual_clutch_value = 65535;
-                    timer_ms = 0;
-                    ESP_LOGD(TAG, "RELEASING -> PRESSED (re-engage)");
-                } else if (timer_ms >= cfg.release_ms) {
-                    s_state = CE_IDLE;
-                    g_virtual_clutch_value = 0;
-                    timer_ms = 0;
-                    ESP_LOGD(TAG, "RELEASING -> IDLE");
-                } else {
-                    float progress = (float)timer_ms / (float)cfg.release_ms;
-                    float eased;
-                    switch (cfg.release_curve) {
-                        case 1:  eased = powf(progress, 1.5f); break;  /* smooth  */
-                        case 2:  eased = powf(progress, 0.6f); break;  /* aggressive */
-                        default: eased = progress;             break;  /* linear  */
-                    }
-                    float val = (float)release_start_val * (1.0f - eased);
-                    g_virtual_clutch_value = (val < 0.0f) ? 0u : (uint16_t)val;
-                }
-                break;
+            if (p->mode == PADDLE_MODE_RELEASE) {
+                g_paddle_output[i] = update_release(p, &s_status[i], input);
+            } else {
+                s_status[i].state = CE_IDLE;
+                g_paddle_output[i] = input;
+            }
         }
+        taskEXIT_CRITICAL(&s_mux);
     }
 }

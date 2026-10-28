@@ -13,10 +13,6 @@ static const char *TAG = "USB_HID";
 static bool s_is_mounted = false;
 static usb_hid_gamepad_report_t s_report = {0};
 
-/* g_left_clutch_value / g_right_clutch_value: written by data_processor, read by this task */
-volatile uint16_t g_left_clutch_value = 0;
-volatile uint16_t g_right_clutch_value = 0;
-
 #define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN)
 
 enum {
@@ -133,8 +129,8 @@ void task_hid_reporter(void *arg)
 
         if (!s_is_mounted) continue;
 
-        s_report.left_clutch  = g_left_clutch_value;
-        s_report.right_clutch = g_right_clutch_value;
+        s_report.left_clutch  = g_paddle_output[0];
+        s_report.right_clutch = g_paddle_output[1];
 
         if (tud_hid_ready()) {
             tud_hid_report(0, &s_report, sizeof(s_report));

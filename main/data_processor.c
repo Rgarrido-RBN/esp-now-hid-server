@@ -17,6 +17,9 @@ static bool s_is_initialized = false;
 static uint32_t s_total_packets = 0;
 static uint32_t s_total_bytes = 0;
 
+/* Shared globals - defined here, declared extern in shared_state.h */
+volatile uint16_t g_paddle_input[PADDLE_COUNT] = {0};
+
 // Calibration state
 static clutch_calibration_t s_calibration = {
     .left_min = 0,
@@ -255,13 +258,9 @@ esp_err_t data_processor_process_espnow_data(const uint8_t *mac_addr,
     left_clutch = apply_curve(left_clutch, s_left_curve);
     right_clutch = apply_curve(right_clutch, s_right_curve);
 
-    // Threshold same as before: left paddle pressed when > 2800 / 4095
-    #define BUTTON_THRESHOLD 2800
-    g_left_clutch_pressed = (left_clutch > BUTTON_THRESHOLD);
-
     // Scale both paddles from 12-bit (0-4095) to 16-bit (0-65535)
-    g_left_clutch_value = (uint16_t)(((uint32_t)left_clutch * 65535u) / 4095u);
-    g_right_clutch_value = (uint16_t)(((uint32_t)right_clutch * 65535u) / 4095u);
+    g_paddle_input[0] = (uint16_t)(((uint32_t)left_clutch * 65535u) / 4095u);
+    g_paddle_input[1] = (uint16_t)(((uint32_t)right_clutch * 65535u) / 4095u);
 
     ESP_LOGD(TAG, "Packet #%lu - Left: %d, Right: %d",
              s_total_packets, left_clutch, right_clutch);

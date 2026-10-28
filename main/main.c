@@ -7,7 +7,7 @@
  *  2. config_manager_init()   — NVS namespace ready
  *  3. config_manager_load()   — populate g_config
  *  4. usb_comm_init()         — TinyUSB HID device
- *  5. clutch_engine_init()    — state machine
+ *  5. clutch_engine_init()    — per-paddle output engine
  *  6. web_config_init()       — WiFi AP config + HTTP server
  *  7. xTaskCreatePinnedToCore — spawn three tasks
  */
@@ -29,7 +29,7 @@
 static const char *TAG = "MAIN";
 
 /* Live config — shared pointer handed to web_config and clutch_engine */
-static clutch_config_t g_config;
+static device_config_t g_config;
 
 /* ESP-NOW data callback (called from WiFi task context) */
 static void on_espnow_data_received(const uint8_t *mac_addr,
@@ -70,12 +70,12 @@ void app_main(void)
     /* 3. Config (NVS already initialized by espnow_handler_init) */
     ESP_ERROR_CHECK(config_manager_init());
     config_manager_load(&g_config);
-    data_processor_set_curves(g_config.left_curve, g_config.right_curve);
+    data_processor_set_curves(g_config.paddle[0].curve_x10, g_config.paddle[1].curve_x10);
 
     /* 4. USB HID */
     ESP_ERROR_CHECK(usb_comm_init());
 
-    /* 5. Virtual clutch state machine */
+    /* 5. Per-paddle output engine (axis / auto-release) */
     clutch_engine_init(&g_config);
 
     /* 6. WiFi AP + HTTP server */

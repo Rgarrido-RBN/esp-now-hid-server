@@ -17,7 +17,7 @@ extern "C" {
  *             written on POST /config).  Must remain valid for the lifetime
  *             of the application.
  */
-esp_err_t web_config_init(clutch_config_t *cfg);
+esp_err_t web_config_init(device_config_t *cfg);
 
 #ifdef __cplusplus
 }

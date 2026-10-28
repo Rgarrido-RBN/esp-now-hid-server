@@ -3,30 +3,22 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "config_manager.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Left clutch paddle pressed state.
+/* Paddle input (0-65535): calibrated travel with the response curve applied.
+ * Index 0 = left, 1 = right.
  * Written by data_processor (ESP-NOW callback), read by task_clutch_engine.
- * Defined in clutch_engine.c */
-extern volatile bool g_left_clutch_pressed;
+ * Defined in data_processor.c */
+extern volatile uint16_t g_paddle_input[PADDLE_COUNT];
 
-/* Virtual clutch axis output (0-65535).
+/* Axis output sent to the PC (0-65535). Index 0 = X axis, 1 = Y axis.
  * Written by task_clutch_engine, read by task_hid_reporter.
  * Defined in clutch_engine.c */
-extern volatile uint16_t g_virtual_clutch_value;
-
-/* Left paddle axis value (0-65535, already scaled from 12-bit ADC).
- * Written by data_processor (ESP-NOW callback), read by task_hid_reporter.
- * Defined in usb_comm.c */
-extern volatile uint16_t g_left_clutch_value;
-
-/* Right clutch axis value (0-65535, already scaled from 12-bit ADC).
- * Written by data_processor (ESP-NOW callback), read by task_hid_reporter.
- * Defined in usb_comm.c */
-extern volatile uint16_t g_right_clutch_value;
+extern volatile uint16_t g_paddle_output[PADDLE_COUNT];
 
 #ifdef __cplusplus
 }

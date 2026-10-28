@@ -26,7 +26,7 @@ esp_err_t usb_comm_init(void);
 bool usb_comm_is_connected(void);
 
 /**
- * FreeRTOS task: reads g_right_clutch_value and g_virtual_clutch_value
+ * FreeRTOS task: reads g_paddle_output (X = left, Y = right)
  * every 10 ms and sends a HID report.
  * Pin to core 1, priority 8, stack 4096.
  */
